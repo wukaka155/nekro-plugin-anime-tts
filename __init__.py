@@ -1,112 +1,195 @@
-"""这是一个示例天气查询插件
+import random
+from typing import Optional
 
-提供指定城市的天气查询功能。
-使用 wttr.in API 获取天气数据。
-"""
-
-from typing import Dict
-
-import httpx
-from nekro_agent.api.schemas import AgentCtx
-from nekro_agent.core import logger
-from nekro_agent.services.plugin.base import ConfigBase, NekroPlugin, SandboxMethodType
 from pydantic import Field
+from httpx import AsyncClient, Timeout, URL
 
-# TODO: 插件元信息，请修改为你的插件信息
+from nekro_agent.api import core
+from nekro_agent.api.schemas import AgentCtx
+from nekro_agent.api.plugin import NekroPlugin, ConfigBase, SandboxMethodType
+
+from nonebot import get_bot
+from nonebot.adapters.onebot.v11 import MessageSegment, ActionFailed
+
+
+# 创建插件实例
 plugin = NekroPlugin(
-    name="天气查询插件",  # TODO: 插件名称
-    module_name="weather",  # TODO: 插件模块名 (如果要发布该插件，需要在 NekroAI 社区中唯一)
-    description="提供指定城市的天气查询功能",  # TODO: 插件描述
-    version="1.0.0",  # TODO: 插件版本
-    author="KroMiose",  # TODO: 插件作者
-    url="https://github.com/KroMiose/nekro-plugin-template",  # TODO: 插件仓库地址
+    name="二游语音生成插件",
+    module_name="anime_tts",
+    description="AI 自主选择语音模型使用 TTS 生成语音并直接发送语音条",
+    version="0.1.0",
+    author="Jerry_FaGe",
+    url="https://github.com/Jerry-FaGe/nekro-plugin-anime-tts",
 )
 
-
-# TODO: 插件配置，根据需要修改
+# 添加配置类
 @plugin.mount_config()
-class WeatherConfig(ConfigBase):
-    """天气查询配置"""
-
-    API_URL: str = Field(
-        default="https://wttr.in/",
-        title="天气API地址",
-        description="天气查询API的基础URL",
+class TtsMsgConfig(ConfigBase):
+    """插件配置"""
+    TTS_API_URL: str = Field(
+        default="https://gsv2p.acgnai.top",
+        title="TTS API URL",
+        description="TTS 服务的基础 URL。请前往 <a href='https://gsv.acgnai.top' target='_blank'>AI Hobbyist TTS</a> 注册。",
     )
-    TIMEOUT: int = Field(
-        default=10,
-        title="请求超时时间",
-        description="API请求的超时时间(秒)",
+    TTS_API_TOKEN: str = Field(
+        default="None",
+        title="TTS API TOKEN",
+        description="注册登录后通过 <a href='https://gsv.acgnai.top/token' target='_blank'>AI Hobbyist TTS</a> 获取令牌",
     )
-
 
 # 获取配置实例
-config: WeatherConfig = plugin.get_config(WeatherConfig)
+config = plugin.get_config(TtsMsgConfig)
+
+# 常量定义
+TTS_API_URL = URL(config.TTS_API_URL)
+TTS_API_TOKEN = config.TTS_API_TOKEN
+
+HEADERS = {"Content-Type": "application/json", "Accept": "application/json", "Authorization": f"Bearer {TTS_API_TOKEN}",}
+TIMEOUT = Timeout(read=60, write=60, connect=10, pool=10)
+CLIENT = AsyncClient(timeout=TIMEOUT)
 
 
-@plugin.mount_sandbox_method(SandboxMethodType.AGENT, name="查询天气", description="查询指定城市的实时天气信息")
-async def query_weather(_ctx: AgentCtx, city: str) -> str:
-    """查询指定城市的实时天气信息。
+async def _make_request(method: str, url: str, json: Optional[dict] = None) -> dict:
+    """通用请求函数"""
+    response = await CLIENT.request(
+        method=method,
+        url=TTS_API_URL.join(url),
+        headers=HEADERS,
+        json=json,
+        timeout=TIMEOUT,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+@plugin.mount_sandbox_method(
+    SandboxMethodType.AGENT,
+    name="获取语音模型",
+    description="获取所有生成语音可用的模型",
+)
+async def get_tts_model(_ctx: AgentCtx) -> str:
+    """获取所有生成语音可用的模型"""
+    data = await _make_request("POST", "models", json={"version": "v4"})
+    data = data.get("models")  # dict[str, dict[str, list[str]]] | None
+    return f"[get_tts_model Results]\n{data}\n这是语音生成接口可用的全部模型，键为模型名，值为该模型可用的语言字典，语言字典内为语气列表，请根据用户要求从中选择一个最合适的。"
+
+
+@plugin.mount_sandbox_method(
+    SandboxMethodType.TOOL,
+    name="生成语音",
+    description="根据传入文本，模型，语言，语气生成语音",
+)
+async def generate_voice(_ctx: AgentCtx, text: str, model_name: str, language: str, emotion: str) -> str:
+    """根据传入文本，语音模型，语言，语气生成一段音频的 URL
+
+    可选角色大多是《崩坏3》《原神》《星穹铁道》《鸣潮》《明日方舟》《蔚蓝档案》《妮姬》中的人物。
+    
+    **重要提示：** 请务必使用**语音模型角色**的语气和人设来构思文本。例如，如果选择爱莉希雅的语音模型，请使用符合爱莉希雅性格和背景的措辞，避免使用大模型自己的人设或其他角色的口头禅或表达方式。
 
     Args:
-        city: 需要查询天气的城市名称，例如 "北京", "London"。
+        text: 要生成语音的文本，大部分模型支持中文，少部分支持日语、英语等
+        model_name: 模型，务必先通过 get_tts_model 方法获取可用模型后填入
+        language: 语言，通过 get_tts_model 方法获取的模型字典的值为模型支持的语言字典，请填入语言字典的键名
+        emotion: 语气，语言字典的值为支持的语气列表，请填入合适的语气
 
     Returns:
-        str: 包含城市实时天气信息的字符串。查询失败时返回错误信息。
+        str: 生成音频的 URL，后缀名为 `.wav`
 
     Example:
-        查询北京的天气:
-        query_weather(city="北京")
-        查询伦敦的天气:
-        query_weather(city="London")
+        generate_voice("愿你前行的道路有群星闪耀，愿你留下的足迹有百花绽放。你即是上帝的馈赠，世界因你而瑰丽。", "崩环三-中文-爱莉希雅", "中文", "默认")
+    """
+    payload = {
+        "version": "v4",
+        "model_name": model_name,
+        "prompt_text_lang": language,
+        "emotion": emotion,
+        "text": text,
+        "text_lang": language,
+        "top_k": 10,
+        "top_p": 1,
+        "temperature": 1,
+        "text_split_method": "按标点符号切",
+        "batch_size": 1,
+        "batch_threshold": 0.75,
+        "split_bucket": True,
+        "speed_facter": 1,
+        "fragment_interval": 0.3,
+        "media_type": "wav",
+        "parallel_infer": True,
+        "repetition_penalty": 1.35,
+        "seed": random.randint(0, 999999999),
+        "sample_steps": 16,
+        "if_sr": False,
+    }
+    data = await _make_request("POST", "infer_single", json=payload)
+
+    if data.get("msg") == "参数错误":
+        core.logger.error(f"TTS API 参数错误: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
+        raise Exception(f"参数错误: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
+
+    if data.get("msg") == "合成成功":
+        core.logger.info(f"TTS API 参数: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
+        core.logger.info(f"TTS API 文本: {text}")
+        return data["audio_url"]
+    
+    raise Exception(f"出现未知错误: {str(data)}，请检查参数是否正确: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
+
+
+@plugin.mount_sandbox_method(
+    SandboxMethodType.TOOL,
+    name="发送语音消息",
+    description="发送语音消息",
+)
+async def send_record_msg(_ctx: AgentCtx, chat_key: str, voice_path: str):
+    """发送语音消息
+
+    Args:
+        chat_key (str): 会话标识
+        voice_path (str): 语音文件路径或 URL
     """
     try:
-        async with httpx.AsyncClient(timeout=config.TIMEOUT) as client:
-            response = await client.get(f"{config.API_URL}{city}?format=j1")
-            response.raise_for_status()
-            data: Dict = response.json()
-
-        # 提取需要的天气信息
-        # wttr.in 的 JSON 结构可能包含 current_condition 列表
-        if not data.get("current_condition"):
-            logger.warning(f"城市 '{city}' 的天气数据格式不符合预期，缺少 'current_condition'")
-            return f"未能获取到城市 '{city}' 的有效天气数据，请检查城市名称是否正确。"
-
-        # 处理获取到的天气数据
-        current_condition = data["current_condition"][0]
-        temp_c = current_condition.get("temp_C")
-        feels_like_c = current_condition.get("FeelsLikeC")
-        humidity = current_condition.get("humidity")
-        weather_desc_list = current_condition.get("weatherDesc", [])
-        weather_desc = weather_desc_list[0].get("value") if weather_desc_list else "未知"
-        wind_speed_kmph = current_condition.get("windspeedKmph")
-        wind_dir = current_condition.get("winddir16Point")
-        visibility = current_condition.get("visibility")
-        pressure = current_condition.get("pressure")
-
-        # 格式化返回结果
-        result = (
-            f"城市: {city}\n"
-            f"天气状况: {weather_desc}\n"
-            f"温度: {temp_c}°C\n"
-            f"体感温度: {feels_like_c}°C\n"
-            f"湿度: {humidity}%\n"
-            f"风向: {wind_dir}\n"
-            f"风速: {wind_speed_kmph} km/h\n"
-            f"能见度: {visibility} km\n"
-            f"气压: {pressure} hPa"
-        )
-        logger.info(f"已查询到城市 '{city}' 的天气")
+        bot = get_bot()
+        voice_message = MessageSegment.record(file=voice_path)
+        
+        if "_" not in chat_key:
+            raise ValueError(f"无效的 chat_key 格式: {chat_key}")
+        
+        adapter_id, old_chat_key = chat_key.split("-", 1)
+        
+        chat_type, target_id = old_chat_key.split("_", 1)
+        
+        if not target_id.isdigit():
+            raise ValueError(f"目标ID必须为数字: {target_id}")
+        
+        if chat_type == "private":
+            await bot.call_api(
+                "send_private_msg",
+                user_id=int(target_id),
+                message=voice_message
+            )
+            core.logger.success(f"私聊语音发送成功: QQ={target_id}, voice={voice_path}")
+            
+        elif chat_type == "group":
+            await bot.call_api(
+                "send_group_msg",
+                group_id=int(target_id),
+                message=voice_message
+            )
+            core.logger.success(f"群聊语音发送成功: 群={target_id}, voice={voice_path}")
+            
+        else:
+            raise ValueError(f"不支持的聊天类型: {chat_type}")
+        
+    except ActionFailed as e:
+        core.logger.error(f"API调用失败: {e.info.get('msg', '未知错误')}")
+    except ValueError as e:
+        core.logger.error(f"参数错误: {str(e)}")
     except Exception as e:
-        # 捕获其他所有未知异常
-        logger.exception(f"查询城市 '{city}' 天气时发生未知错误: {e}")
-        return f"查询 '{city}' 天气时发生内部错误。"
-    else:
-        return result
+        core.logger.exception(f"发送语音消息异常: {str(e)}")
 
 
 @plugin.mount_cleanup_method()
 async def clean_up():
     """清理插件资源"""
-    # 如果有使用数据库连接、文件句柄或其他需要释放的资源，在此处添加清理逻辑
-    logger.info("天气查询插件资源已清理。")
+    # 如有必要，在此实现清理资源的逻辑
+    pass
