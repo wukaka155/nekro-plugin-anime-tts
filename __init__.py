@@ -31,20 +31,22 @@ class TtsMsgConfig(ConfigBase):
         title="TTS API URL",
         description="TTS 服务的基础 URL。请前往 <a href='https://gsv.acgnai.top' target='_blank'>AI Hobbyist TTS</a> 注册。",
     )
-    TTS_API_TOKEN: str = Field(
-        default="None",
-        title="TTS API TOKEN",
-        description="注册登录后通过 <a href='https://gsv.acgnai.top/token' target='_blank'>AI Hobbyist TTS</a> 获取令牌",
-    )
+    # TTS_API_TOKEN: str = Field(
+    #     default="None",
+    #     title="TTS API TOKEN",
+    #     description="注册登录后通过 <a href='https://gsv.acgnai.top/token' target='_blank'>AI Hobbyist TTS</a> 获取令牌",
+    # )
 
 # 获取配置实例
 config = plugin.get_config(TtsMsgConfig)
 
 # 常量定义
 TTS_API_URL = URL(config.TTS_API_URL)
-TTS_API_TOKEN = config.TTS_API_TOKEN
+# TTS_API_TOKEN = config.TTS_API_TOKEN
 
-HEADERS = {"Content-Type": "application/json", "Accept": "application/json", "Authorization": f"Bearer {TTS_API_TOKEN}",}
+# HEADERS = {"Content-Type": "application/json", "Accept": "application/json", "Authorization": f"Bearer {TTS_API_TOKEN}",}
+HEADERS = {"Content-Type": "application/json", "Accept": "application/json",}
+
 TIMEOUT = Timeout(read=60, write=60, connect=10, pool=10)
 CLIENT = AsyncClient(timeout=TIMEOUT)
 
