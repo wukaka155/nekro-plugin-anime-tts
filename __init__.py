@@ -125,7 +125,7 @@ async def generate_voice(_ctx: AgentCtx, text: str, model_name: str, language: s
         "if_sr": False,
     }
     data = await _make_request("POST", "infer_single", json=payload)
-    core.logger.info(f'data::{data["audio_url"]}')
+    core.logger.info(f'data::{URL(config.TTS_API_URL)}{data["audio_url"]}')
 
     if data.get("msg") == "参数错误":
         core.logger.error(f"TTS API 参数错误: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
