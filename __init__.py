@@ -60,6 +60,7 @@ async def _make_request(method: str, url: str, json: Optional[dict] = None) -> d
         json=json,
         timeout=TIMEOUT,
     )
+    core.logger.info(json)
     response.raise_for_status()
     return response.json()
 
