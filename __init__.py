@@ -47,7 +47,7 @@ TTS_API_URL = URL(config.TTS_API_URL)
 # HEADERS = {"Content-Type": "application/json", "Accept": "application/json", "Authorization": f"Bearer {TTS_API_TOKEN}",}
 HEADERS = {"Content-Type": "application/json", "Accept": "application/json",}
 
-TIMEOUT = Timeout(read=1200, write=1200, connect=1200, pool=1200)
+TIMEOUT = Timeout(read=12000, write=12000, connect=12000, pool=12000)
 CLIENT = AsyncClient(timeout=TIMEOUT)
 
 
