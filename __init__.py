@@ -125,6 +125,7 @@ async def generate_voice(_ctx: AgentCtx, text: str, model_name: str, language: s
         "if_sr": False,
     }
     data = await _make_request("POST", "infer_single", json=payload)
+    core.logger.info(f'data: {data}')
 
     if data.get("msg") == "参数错误":
         core.logger.error(f"TTS API 参数错误: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
@@ -133,7 +134,6 @@ async def generate_voice(_ctx: AgentCtx, text: str, model_name: str, language: s
     if data.get("msg") == "合成成功":
         core.logger.info(f"TTS API 参数: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
         core.logger.info(f"TTS API 文本: {text}")
-        core.logger.info(f'data: {data}')
         return data["audio_url"]
     
     raise Exception(f"出现未知错误: {str(data)}，请检查参数是否正确: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
