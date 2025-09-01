@@ -151,7 +151,7 @@ async def send_record_msg(_ctx: AgentCtx, voice_path: str):
         chat_key (str): 会话标识
         voice_path (str): 语音文件路径或 URL
     """
-    core.logger.infO(f'send_message::{_ctx.from_chat_key}')
+    core.logger.error(f'send_message::{_ctx.from_chat_key},file_path::{voice_path}')
     chat_key = _ctx.from_chat_key
     core.logger.info(f'send_message::{chat_key}::{voice_path}')
     try:
