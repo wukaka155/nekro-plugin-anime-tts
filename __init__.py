@@ -25,6 +25,8 @@ plugin = NekroPlugin(
 )
 
 # 添加配置类
+
+
 @plugin.mount_config()
 class TtsMsgConfig(ConfigBase):
     """插件配置"""
@@ -39,6 +41,7 @@ class TtsMsgConfig(ConfigBase):
     #     description="注册登录后通过 <a href='https://gsv.acgnai.top/token' target='_blank'>AI Hobbyist TTS</a> 获取令牌",
     # )
 
+
 # 获取配置实例
 config = plugin.get_config(TtsMsgConfig)
 
@@ -48,7 +51,7 @@ TTS_API_URL_PARSED = urlparse(config.TTS_API_URL)
 # TTS_API_TOKEN = config.TTS_API_TOKEN
 
 # HEADERS = {"Content-Type": "application/json", "Accept": "application/json", "Authorization": f"Bearer {TTS_API_TOKEN}",}
-HEADERS = {"Content-Type": "application/json", "Accept": "application/json",}
+HEADERS = {"Content-Type": "application/json", "Accept": "application/json", }
 
 TIMEOUT = Timeout(read=12000, write=12000, connect=12000, pool=12000)
 CLIENT = AsyncClient(timeout=TIMEOUT)
@@ -64,7 +67,6 @@ async def _make_request(method: str, url: str, json: Optional[dict] = None) -> d
         timeout=TIMEOUT,
     )
     core.logger.info(json)
-    response.raise_for_status()
     return response.json()
 
 
@@ -89,7 +91,7 @@ async def generate_voice(_ctx: AgentCtx, text: str, model_name: str, language: s
     """根据传入文本，语音模型，语言，语气生成一段音频的 URL
 
     可选角色大多是《崩坏3》《原神》《星穹铁道》《鸣潮》《明日方舟》《蔚蓝档案》《妮姬》中的人物。
-    
+
     **重要提示：** 请务必使用**语音模型角色**的语气和人设来构思文本。例如，如果选择爱莉希雅的语音模型，请使用符合爱莉希雅性格和背景的措辞，避免使用大模型自己的人设或其他角色的口头禅或表达方式。
 
     Args:
@@ -131,19 +133,24 @@ async def generate_voice(_ctx: AgentCtx, text: str, model_name: str, language: s
         data = await _make_request("POST", "infer_single", json=payload)
     except Exception as e:
         core.logger.error(e)
-    
-    core.logger.info(f'{TTS_API_URL_PARSED.scheme}://{TTS_API_URL_PARSED.netloc}{data["audio_url"]}')
+
+    core.logger.info(
+        f'{TTS_API_URL_PARSED.scheme}://{TTS_API_URL_PARSED.netloc}{data["audio_url"]}')
 
     if data.get("msg") == "参数错误":
-        core.logger.error(f"TTS API 参数错误: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
-        raise Exception(f"参数错误: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
+        core.logger.error(
+            f"TTS API 参数错误: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
+        raise Exception(
+            f"参数错误: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
 
     if data.get("msg") == "合成成功":
-        core.logger.info(f"TTS API 参数: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
+        core.logger.info(
+            f"TTS API 参数: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
         core.logger.info(f"TTS API 文本: {text}")
         return f'{TTS_API_URL_PARSED.scheme}://{TTS_API_URL_PARSED.netloc}{data["audio_url"]}'
-    
-    raise Exception(f"出现未知错误: {str(data)}，请检查参数是否正确: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
+
+    raise Exception(
+        f"出现未知错误: {str(data)}，请检查参数是否正确: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
 
 
 @plugin.mount_sandbox_method(
@@ -151,36 +158,39 @@ async def generate_voice(_ctx: AgentCtx, text: str, model_name: str, language: s
     name="发送语音消息",
     description="发送语音消息",
 )
-async def send_record_msg(_ctx: AgentCtx, voice_path: str):
+async def send_record_msg(_ctx: AgentCtx, chat_key: str, voice_path: str):
     """发送语音消息
     Args:
+        chat_key (str): 会话标识
         voice_path (str): 语音文件路径或 URL
     """
-    core.logger.error(f'send_message::{_ctx.from_chat_key},file_path::{voice_path}')
+    core.logger.error(
+        f'send_message::{_ctx.from_chat_key},file_path::{voice_path}')
     chat_key = _ctx.from_chat_key
     core.logger.info(f'send_message::{chat_key}::{voice_path}')
     try:
         bot = get_bot()
         voice_message = MessageSegment.record(file=voice_path)
-        
+
         if "_" not in chat_key:
             raise ValueError(f"无效的 chat_key 格式: {chat_key}")
-        
+
         adapter_id, old_chat_key = chat_key.split("-", 1)
-        
+
         chat_type, target_id = old_chat_key.split("_", 1)
-        
+
         if not target_id.isdigit():
             raise ValueError(f"目标ID必须为数字: {target_id}")
-        
+
         if chat_type == "private":
             await bot.call_api(
                 "send_private_msg",
                 user_id=int(target_id),
                 message=voice_message
             )
-            core.logger.success(f"私聊语音发送成功: QQ={target_id}, voice={voice_path}")
-            
+            core.logger.success(
+                f"私聊语音发送成功: QQ={target_id}, voice={voice_path}")
+
         elif chat_type == "group":
             await bot.call_api(
                 "send_group_msg",
@@ -188,10 +198,10 @@ async def send_record_msg(_ctx: AgentCtx, voice_path: str):
                 message=voice_message
             )
             core.logger.success(f"群聊语音发送成功: 群={target_id}, voice={voice_path}")
-            
+
         else:
             raise ValueError(f"不支持的聊天类型: {chat_type}")
-        
+
     except ActionFailed as e:
         core.logger.error(f"API调用失败: {e.info.get('msg', '未知错误')}")
     except ValueError as e:
