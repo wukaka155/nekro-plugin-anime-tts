@@ -144,13 +144,15 @@ async def generate_voice(_ctx: AgentCtx, text: str, model_name: str, language: s
     name="发送语音消息",
     description="发送语音消息",
 )
-async def send_record_msg(_ctx: AgentCtx, chat_key: str, voice_path: str):
+async def send_record_msg(_ctx: AgentCtx, voice_path: str):
     """发送语音消息
 
     Args:
         chat_key (str): 会话标识
         voice_path (str): 语音文件路径或 URL
     """
+    core.logger.infO(f'send_message::{_ctx.from_chat_key}')
+    chat_key = _ctx.from_chat_key
     core.logger.info(f'send_message::{chat_key}::{voice_path}')
     try:
         bot = get_bot()
