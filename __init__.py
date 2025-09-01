@@ -11,6 +11,8 @@ from nekro_agent.api.plugin import NekroPlugin, ConfigBase, SandboxMethodType
 from nonebot import get_bot
 from nonebot.adapters.onebot.v11 import MessageSegment, ActionFailed
 
+from urllib.parse import urlparse
+
 
 # 创建插件实例
 plugin = NekroPlugin(
@@ -42,6 +44,7 @@ config = plugin.get_config(TtsMsgConfig)
 
 # 常量定义
 TTS_API_URL = URL(config.TTS_API_URL)
+TTS_API_URL_PARSED = urlparse(config.TTS_API_URL)
 # TTS_API_TOKEN = config.TTS_API_TOKEN
 
 # HEADERS = {"Content-Type": "application/json", "Accept": "application/json", "Authorization": f"Bearer {TTS_API_TOKEN}",}
@@ -134,7 +137,7 @@ async def generate_voice(_ctx: AgentCtx, text: str, model_name: str, language: s
     if data.get("msg") == "合成成功":
         core.logger.info(f"TTS API 参数: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
         core.logger.info(f"TTS API 文本: {text}")
-        return f'{URL(config.TTS_API_URL)}{data["audio_url"]}'
+        return f'{TTS_API_URL_PARSED.scheme}://{TTS_API_URL_PARSED.netloc}{data["audio_url"]}'
     
     raise Exception(f"出现未知错误: {str(data)}，请检查参数是否正确: 模型: {model_name}, 语言: {language}, 语气: {emotion}")
 
@@ -146,9 +149,7 @@ async def generate_voice(_ctx: AgentCtx, text: str, model_name: str, language: s
 )
 async def send_record_msg(_ctx: AgentCtx, voice_path: str):
     """发送语音消息
-
     Args:
-        chat_key (str): 会话标识
         voice_path (str): 语音文件路径或 URL
     """
     core.logger.error(f'send_message::{_ctx.from_chat_key},file_path::{voice_path}')
