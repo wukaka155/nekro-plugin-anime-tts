@@ -171,3 +171,5 @@ plugins/workdir
 
 # webui build files
 static
+t1.py
+t2.py
